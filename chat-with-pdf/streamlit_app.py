@@ -1,6 +1,6 @@
-import os, tempfile, streamlit as st
-from llama_index.core import Settings, VectorStoreIndex
-from llama_cloud_services import LlamaParse
+import os, streamlit as st
+from llama_cloud import LlamaCloud
+from llama_index.core import Document, Settings, VectorStoreIndex
 
 # Streamlit app config
 st.set_page_config(page_title="Chat with PDF", page_icon="📄")
@@ -49,14 +49,25 @@ if submit:
         if st.session_state.loaded_doc != source_doc:
             with st.spinner("Uploading and indexing document, please wait...", show_time=True):
                 try:
-                    parser = LlamaParse(language="en", result_type="markdown")
- 
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        tmp_file.write(source_doc.read())
- 
-                    documents = parser.load_data(tmp_file.name)
-                    os.remove(tmp_file.name)
- 
+                    client = LlamaCloud(api_key=st.session_state.llama_cloud_api_key)
+                    result = client.parsing.parse(
+                        tier="cost_effective",
+                        version="latest",
+                        upload_file=(source_doc.name, source_doc.getvalue(), "application/pdf"),
+                        processing_options={"ocr_parameters": {"languages": ["en"]}},
+                        expand=["markdown"],
+                    )
+
+                    # One document per successfully parsed page
+                    pages = result.markdown.pages if result.markdown else []
+                    documents = [
+                        Document(text=page.markdown, metadata={"page_number": page.page_number, "file_name": source_doc.name})
+                        for page in pages
+                        if page.success and page.markdown.strip()
+                    ]
+                    if not documents:
+                        raise ValueError("LlamaCloud returned no text for this PDF.")
+
                     index = VectorStoreIndex.from_documents(documents)
                     st.session_state.query_engine = index.as_query_engine(
                         similarity_top_k=5,

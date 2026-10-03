@@ -4,4 +4,4 @@ llama-index-core==0.14.25
 llama-index-readers-file==0.7.0
 llama-index-llms-openai==0.7.10
 llama-index-embeddings-openai==0.6.0
-llama-cloud-services==0.6.94
+llama-cloud==2.16.0
